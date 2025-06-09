@@ -33,4 +33,4 @@ All data is saved in:
 
 ## License
 
-MIT License
+no license I am in Nulgaria after all no FBI to come after me hehe
