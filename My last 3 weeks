@@ -1,0 +1,1211 @@
+
+import javax.swing.*;
+import javax.swing.border.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import java.awt.*;
+import java.io.*;
+import java.util.*;
+import java.util.List;
+
+public class Diablo2App {
+    private JFrame mainFrame;
+    private DefaultListModel<String> inventoryListModel;
+    private DefaultListModel<String> buildsListModel;
+    private JList<String> inventoryList;
+    private JList<String> buildsList;
+    private Map<String, Item> inventoryItems;
+    private Map<String, Build> builds;
+    private ItemDatabase itemDatabase;
+
+    public Diablo2App() {
+        inventoryItems = new HashMap<>();
+        builds = new HashMap<>();
+        itemDatabase = new ItemDatabase();
+        initializeUI();
+        loadData();
+    }
+
+    private void initializeUI() {
+        // Main frame setup
+        mainFrame = new JFrame("Diablo 2 Inventory and Build Manager");
+        mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        mainFrame.setSize(1000, 700);
+        mainFrame.setLayout(new BorderLayout(10, 10));
+
+        // Apply dark theme colors
+        Color darkBackground = new Color(30, 30, 30);
+        Color goldText = new Color(220, 180, 140);
+        Color darkerBackground = new Color(20, 20, 20);
+        Color borderColor = new Color(80, 60, 30);
+
+        // Main panel with border layout
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBackground(darkBackground);
+        mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        // Create left panel (Inventory)
+        JPanel inventoryPanel = createInventoryPanel(darkBackground, goldText, borderColor);
+        mainPanel.add(inventoryPanel, BorderLayout.WEST);
+
+        // Create center panel (Builds)
+        JPanel buildsPanel = createBuildsPanel(darkBackground, goldText, borderColor);
+        mainPanel.add(buildsPanel, BorderLayout.CENTER);
+
+        // Create button panel at bottom
+        JPanel buttonPanel = createButtonPanel(darkBackground, goldText, borderColor);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+        mainFrame.add(mainPanel);
+        mainFrame.setVisible(true);
+    }
+
+    private JPanel createInventoryPanel(Color bgColor, Color textColor, Color borderColor) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(bgColor);
+        panel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(borderColor, 2),
+                "Inventory", TitledBorder.LEFT, TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 14), textColor));
+
+        inventoryListModel = new DefaultListModel<>();
+        inventoryList = new JList<>(inventoryListModel);
+        inventoryList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        inventoryList.setBackground(bgColor);
+        inventoryList.setForeground(textColor);
+        inventoryList.setFont(new Font("Arial", Font.PLAIN, 12));
+
+        JScrollPane scrollPane = new JScrollPane(inventoryList);
+        scrollPane.setBackground(bgColor);
+        scrollPane.getViewport().setBackground(bgColor);
+        scrollPane.setBorder(BorderFactory.createLineBorder(borderColor, 1));
+
+        // Inventory buttons panel
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 3, 5, 5));
+        buttonPanel.setBackground(bgColor);
+
+        JButton addItemBtn = createStyledButton("Add Item", textColor, bgColor, borderColor);
+        addItemBtn.addActionListener(e -> showAddItemDialog());
+
+        JButton editItemBtn = createStyledButton("Edit Item", textColor, bgColor, borderColor);
+        editItemBtn.addActionListener(e -> editSelectedItem());
+
+        JButton removeItemBtn = createStyledButton("Remove Item", textColor, bgColor, borderColor);
+        removeItemBtn.addActionListener(e -> removeSelectedItem());
+
+        buttonPanel.add(addItemBtn);
+        buttonPanel.add(editItemBtn);
+        buttonPanel.add(removeItemBtn);
+
+        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    private JPanel createBuildsPanel(Color bgColor, Color textColor, Color borderColor) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(bgColor);
+        panel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(borderColor, 2),
+                "Builds", TitledBorder.LEFT, TitledBorder.TOP,
+                new Font("Arial", Font.BOLD, 14), textColor));
+
+        buildsListModel = new DefaultListModel<>();
+        buildsList = new JList<>(buildsListModel);
+        buildsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        buildsList.setBackground(bgColor);
+        buildsList.setForeground(textColor);
+        buildsList.setFont(new Font("Arial", Font.PLAIN, 12));
+
+        JScrollPane scrollPane = new JScrollPane(buildsList);
+        scrollPane.setBackground(bgColor);
+        scrollPane.getViewport().setBackground(bgColor);
+        scrollPane.setBorder(BorderFactory.createLineBorder(borderColor, 1));
+
+        // Builds buttons panel
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 4, 5, 5));
+        buttonPanel.setBackground(bgColor);
+
+        JButton createBuildBtn = createStyledButton("Create Build", textColor, bgColor, borderColor);
+        createBuildBtn.addActionListener(e -> showCreateBuildDialog());
+
+        JButton editBuildBtn = createStyledButton("Edit Build", textColor, bgColor, borderColor);
+        editBuildBtn.addActionListener(e -> editSelectedBuild());
+
+        JButton viewBuildBtn = createStyledButton("View Build", textColor, bgColor, borderColor);
+        viewBuildBtn.addActionListener(e -> viewSelectedBuild());
+
+        JButton removeBuildBtn = createStyledButton("Remove Build", textColor, bgColor, borderColor);
+        removeBuildBtn.addActionListener(e -> removeSelectedBuild());
+
+        buttonPanel.add(createBuildBtn);
+        buttonPanel.add(editBuildBtn);
+        buttonPanel.add(viewBuildBtn);
+        buttonPanel.add(removeBuildBtn);
+
+        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    private JPanel createButtonPanel(Color bgColor, Color textColor, Color borderColor) {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        panel.setBackground(bgColor);
+
+        JButton itemDbBtn = createStyledButton("Item Database", textColor, bgColor, borderColor);
+        itemDbBtn.addActionListener(e -> showItemDatabase());
+
+        JButton saveBtn = createStyledButton("Save All", textColor, bgColor, borderColor);
+        saveBtn.addActionListener(e -> saveData());
+
+        JButton loadBtn = createStyledButton("Load All", textColor, bgColor, borderColor);
+        loadBtn.addActionListener(e -> loadData());
+
+        JButton exitBtn = createStyledButton("Exit", textColor, bgColor, borderColor);
+        exitBtn.addActionListener(e -> {
+            saveData();
+            mainFrame.dispose();
+        });
+
+        panel.add(itemDbBtn);
+        panel.add(saveBtn);
+        panel.add(loadBtn);
+        panel.add(exitBtn);
+
+        return panel;
+    }
+
+    private JButton createStyledButton(String text, Color textColor, Color bgColor, Color borderColor) {
+        JButton button = new JButton(text);
+        button.setForeground(textColor);
+        button.setBackground(bgColor);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(borderColor, 1),
+                BorderFactory.createEmptyBorder(5, 10, 5, 10)));
+        button.setFocusPainted(false);
+        button.setFont(new Font("Arial", Font.BOLD, 12));
+        return button;
+    }
+
+    private void showAddItemDialog() {
+        AddItemDialog dialog = new AddItemDialog(mainFrame, itemDatabase);
+        dialog.setVisible(true);
+        if (dialog.isConfirmed()) {
+            Item newItem = dialog.getItem();
+            inventoryItems.put(newItem.getName(), newItem);
+            updateInventoryList();
+        }
+    }
+
+    private void editSelectedItem() {
+        String selected = inventoryList.getSelectedValue();
+        if (selected == null) {
+            JOptionPane.showMessageDialog(mainFrame, "Please select an item to edit.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Item item = inventoryItems.get(selected.split(" \\(")[0]);
+        if (item != null) {
+            AddItemDialog dialog = new AddItemDialog(mainFrame, itemDatabase, item);
+            dialog.setVisible(true);
+            if (dialog.isConfirmed()) {
+                Item updatedItem = dialog.getItem();
+                inventoryItems.remove(item.getName());
+                inventoryItems.put(updatedItem.getName(), updatedItem);
+                updateInventoryList();
+            }
+        }
+    }
+
+    private void removeSelectedItem() {
+        String selected = inventoryList.getSelectedValue();
+        if (selected == null) {
+            JOptionPane.showMessageDialog(mainFrame, "Please select an item to remove.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(mainFrame,
+                "Are you sure you want to remove this item?", "Confirm Removal",
+                JOptionPane.YES_NO_OPTION);
+        if (confirm == JOptionPane.YES_OPTION) {
+            String itemName = selected.split(" \\(")[0];
+            inventoryItems.remove(itemName);
+            updateInventoryList();
+        }
+    }
+
+    private void showCreateBuildDialog() {
+        BuildCreatorDialog dialog = new BuildCreatorDialog(mainFrame, inventoryItems);
+        dialog.setVisible(true);
+        if (dialog.isConfirmed()) {
+            Build newBuild = dialog.getBuild();
+            builds.put(newBuild.getName(), newBuild);
+            updateBuildsList();
+        }
+    }
+
+    private void editSelectedBuild() {
+        String selected = buildsList.getSelectedValue();
+        if (selected == null) {
+            JOptionPane.showMessageDialog(mainFrame, "Please select a build to edit.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Build build = builds.get(selected);
+        if (build != null) {
+            BuildCreatorDialog dialog = new BuildCreatorDialog(mainFrame, inventoryItems, build);
+            dialog.setVisible(true);
+            if (dialog.isConfirmed()) {
+                Build updatedBuild = dialog.getBuild();
+                builds.remove(build.getName());
+                builds.put(updatedBuild.getName(), updatedBuild);
+                updateBuildsList();
+            }
+        }
+    }
+
+    private void viewSelectedBuild() {
+        String selected = buildsList.getSelectedValue();
+        if (selected == null) {
+            JOptionPane.showMessageDialog(mainFrame, "Please select a build to view.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Build build = builds.get(selected);
+        if (build != null) {
+            ViewBuildDialog dialog = new ViewBuildDialog(mainFrame, build);
+            dialog.setVisible(true);
+        }
+    }
+
+    private void removeSelectedBuild() {
+        String selected = buildsList.getSelectedValue();
+        if (selected == null) {
+            JOptionPane.showMessageDialog(mainFrame, "Please select a build to remove.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(mainFrame,
+                "Are you sure you want to remove this build?", "Confirm Removal",
+                JOptionPane.YES_NO_OPTION);
+        if (confirm == JOptionPane.YES_OPTION) {
+            builds.remove(selected);
+            updateBuildsList();
+        }
+    }
+
+    private void showItemDatabase() {
+        ItemDatabaseWindow dbWindow = new ItemDatabaseWindow(mainFrame, itemDatabase);
+        dbWindow.setVisible(true);
+    }
+
+    private void updateInventoryList() {
+        inventoryListModel.clear();
+        for (Item item : inventoryItems.values()) {
+            inventoryListModel.addElement(item.toString());
+        }
+    }
+
+    private void updateBuildsList() {
+        buildsListModel.clear();
+        for (String buildName : builds.keySet()) {
+            buildsListModel.addElement(buildName);
+        }
+    }
+
+    private void saveData() {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("inventory.dat"))) {
+            oos.writeObject(inventoryItems);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(mainFrame, "Error saving inventory: " + e.getMessage(), "Save Error", JOptionPane.ERROR_MESSAGE);
+        }
+
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("builds.dat"))) {
+            oos.writeObject(builds);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(mainFrame, "Error saving builds: " + e.getMessage(), "Save Error", JOptionPane.ERROR_MESSAGE);
+        }
+
+        JOptionPane.showMessageDialog(mainFrame, "Data saved successfully.", "Save Complete", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void loadData() {
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream("inventory.dat"))) {
+            inventoryItems = (Map<String, Item>) ois.readObject();
+            updateInventoryList();
+        } catch (FileNotFoundException e) {
+            // First run, no data to load
+        } catch (IOException | ClassNotFoundException e) {
+            JOptionPane.showMessageDialog(mainFrame, "Error loading inventory: " + e.getMessage(), "Load Error", JOptionPane.ERROR_MESSAGE);
+        }
+
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream("builds.dat"))) {
+            builds = (Map<String, Build>) ois.readObject();
+            updateBuildsList();
+        } catch (FileNotFoundException e) {
+            // First run, no data to load
+        } catch (IOException | ClassNotFoundException e) {
+            JOptionPane.showMessageDialog(mainFrame, "Error loading builds: " + e.getMessage(), "Load Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+                new Diablo2App();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+}
+
+class Item implements Serializable {
+    private static final long serialVersionUID = 1L;
+    private String name;
+    private String category;
+    private String enchantment;
+    private int quantity;
+    private String locationFound;
+
+    public Item(String name, String category, String enchantment, int quantity, String locationFound) {
+        this.name = name;
+        this.category = category;
+        this.enchantment = enchantment;
+        this.quantity = quantity;
+        this.locationFound = locationFound;
+    }
+
+    public String getName() { return name; }
+    public String getCategory() { return category; }
+    public String getEnchantment() { return enchantment; }
+    public int getQuantity() { return quantity; }
+    public String getLocationFound() { return locationFound; }
+
+    public void setName(String name) { this.name = name; }
+    public void setCategory(String category) { this.category = category; }
+    public void setEnchantment(String enchantment) { this.enchantment = enchantment; }
+    public void setQuantity(int quantity) { this.quantity = quantity; }
+    public void setLocationFound(String locationFound) { this.locationFound = locationFound; }
+
+    @Override
+    public String toString() {
+        return name + " (" + quantity + ") - " + enchantment;
+    }
+}
+
+class Build implements Serializable {
+    private static final long serialVersionUID = 1L;
+    private String name;
+    private Map<String, Item> items;
+    private String description;
+
+    public Build(String name) {
+        this.name = name;
+        this.items = new HashMap<>();
+        this.description = "";
+    }
+
+    public String getName() { return name; }
+    public Map<String, Item> getItems() { return items; }
+    public String getDescription() { return description; }
+
+    public void setName(String name) { this.name = name; }
+    public void setDescription(String description) { this.description = description; }
+
+    public void addItem(Item item) {
+        items.put(item.getName(), item);
+    }
+
+    public void removeItem(String itemName) {
+        items.remove(itemName);
+    }
+
+    public boolean hasAllCategories() {
+        Set<String> categories = new HashSet<>();
+        for (Item item : items.values()) {
+            categories.add(item.getCategory());
+        }
+        return categories.containsAll(Arrays.asList("Weapon", "Armor", "Jewelry", "Charm", "Rune", "Gem"));
+    }
+}
+
+class ItemDatabase {
+    private Map<String, List<String>> itemsByCategory;
+    private List<String> enchantmentTypes;
+
+    public ItemDatabase() {
+        initializeDatabase();
+    }
+
+    private void initializeDatabase() {
+        itemsByCategory = new HashMap<>();
+
+        // Weapons
+        itemsByCategory.put("Weapon", Arrays.asList(
+                "The Grandfather", "Doombringer", "Windforce",
+                "Buriza-Do Kyanon", "Messerschmidt's Reaver",
+                "Hellslayer", "The Cranium Basher", "Eaglehorn",
+                "Tomb Reaver", "Stormspire"
+        ));
+
+        // Armor
+        itemsByCategory.put("Armor", Arrays.asList(
+                "Arkaine's Valor", "Tyrael's Might", "Shaftstop",
+                "Viperfork", "Guardian Angel", "Orphan's Call",
+                "Tal Rasha's Guardianship", "M'avina's Embrace",
+                "Immortal King's Soul Cage", "Trang-Oul's Scales"
+        ));
+
+        // Jewelry
+        itemsByCategory.put("Jewelry", Arrays.asList(
+                "The Stone of Jordan", "Nagelring", "Manald Heal",
+                "Bul-Kathos' Wedding Band", "Raven Frost", "Dwarf Star",
+                "Wisp Projector", "Mara's Kaleidoscope", "Highlord's Wrath",
+                "Metalgrid"
+        ));
+
+        // Charms
+        itemsByCategory.put("Charm", Arrays.asList(
+                "Annihilus", "Hellfire Torch", "Gheed's Fortune",
+                "Small Charm of Good Luck", "Large Charm of Vita",
+                "Grand Charm of Skill", "Small Charm of Balance",
+                "Large Charm of Inertia", "Grand Charm of Life"
+        ));
+
+        // Runes
+        itemsByCategory.put("Rune", Arrays.asList(
+                "El", "Eld", "Tir", "Nef", "Eth", "Ith", "Tal", "Ral", "Ort", "Thul",
+                "Amn", "Sol", "Shael", "Dol", "Hel", "Io", "Lum", "Ko", "Fal", "Lem",
+                "Pul", "Um", "Mal", "Ist", "Gul", "Vex", "Ohm", "Lo", "Sur", "Ber",
+                "Jah", "Cham", "Zod"
+        ));
+
+        // Gems
+        itemsByCategory.put("Gem", Arrays.asList(
+                "Chipped Amethyst", "Flawed Amethyst", "Amethyst", "Flawless Amethyst", "Perfect Amethyst",
+                "Chipped Diamond", "Flawed Diamond", "Diamond", "Flawless Diamond", "Perfect Diamond",
+                "Chipped Emerald", "Flawed Emerald", "Emerald", "Flawless Emerald", "Perfect Emerald",
+                "Chipped Ruby", "Flawed Ruby", "Ruby", "Flawless Ruby", "Perfect Ruby",
+                "Chipped Sapphire", "Flawed Sapphire", "Sapphire", "Flawless Sapphire", "Perfect Sapphire",
+                "Chipped Topaz", "Flawed Topaz", "Topaz", "Flawless Topaz", "Perfect Topaz",
+                "Skull"
+        ));
+
+        // Misc
+        itemsByCategory.put("Misc", Arrays.asList(
+                "Horadric Cube", "Tome of Town Portal", "Tome of Identify",
+                "Key", "Potion", "Scroll"
+        ));
+
+        // Enchantment types
+        enchantmentTypes = Arrays.asList(
+                "None", "Ethereal", "Socketed", "Superior", "Low Quality",
+                "Cracked", "Magic", "Rare", "Unique", "Set", "Crafted"
+        );
+    }
+
+    public List<String> getCategories() {
+        return new ArrayList<>(itemsByCategory.keySet());
+    }
+
+    public List<String> getItemsForCategory(String category) {
+        return itemsByCategory.getOrDefault(category, new ArrayList<>());
+    }
+
+    public List<String> getEnchantmentTypes() {
+        return enchantmentTypes;
+    }
+
+    public String getRandomLocationFound(String itemName) {
+        // In a real application, this would come from a proper database
+        String[] locations = {
+                "Drops from Baal", "Found in Chaos Sanctuary", "Drops from Mephisto",
+                "Worldstone Keep", "Ancient Tunnels", "The Pit", "Arcane Sanctuary",
+                "Cows Level", "Travincal", "Lower Kurast"
+        };
+        return locations[new Random().nextInt(locations.length)];
+    }
+}
+
+class AddItemDialog extends JDialog {
+    private boolean confirmed = false;
+    private Item item;
+    private ItemDatabase itemDatabase;
+
+    private JTextField nameField;
+    private JComboBox<String> categoryCombo;
+    private JComboBox<String> enchantmentCombo;
+    private JSpinner quantitySpinner;
+    private JTextField locationField;
+    private JButton okButton;
+    private JButton cancelButton;
+
+    public AddItemDialog(JFrame parent, ItemDatabase itemDatabase) {
+        super(parent, "Add New Item", true);
+        this.itemDatabase = itemDatabase;
+        initializeUI();
+    }
+
+    public AddItemDialog(JFrame parent, ItemDatabase itemDatabase, Item existingItem) {
+        this(parent, itemDatabase);
+        this.item = existingItem;
+        populateFields();
+    }
+
+    private void initializeUI() {
+        setSize(400, 300);
+        setLayout(new BorderLayout(10, 10));
+        Color darkBackground = new Color(30, 30, 30);
+        Color goldText = new Color(220, 180, 140);
+        Color borderColor = new Color(80, 60, 30);
+
+        getContentPane().setBackground(darkBackground);
+
+        // Form panel
+        JPanel formPanel = new JPanel(new GridLayout(5, 2, 5, 5));
+        formPanel.setBackground(darkBackground);
+        formPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        // Name
+        addLabelAndField(formPanel, "Item Name:", goldText);
+        nameField = new JTextField();
+        nameField.setBackground(new Color(50, 50, 50));
+        nameField.setForeground(goldText);
+        formPanel.add(nameField);
+
+        // Category
+        addLabelAndField(formPanel, "Category:", goldText);
+        categoryCombo = new JComboBox<>(itemDatabase.getCategories().toArray(new String[0]));
+        styleComboBox(categoryCombo, goldText, darkBackground);
+        categoryCombo.addActionListener(e -> updateNameSuggestions());
+        formPanel.add(categoryCombo);
+
+        // Enchantment
+        addLabelAndField(formPanel, "Enchantment:", goldText);
+        enchantmentCombo = new JComboBox<>(itemDatabase.getEnchantmentTypes().toArray(new String[0]));
+        styleComboBox(enchantmentCombo, goldText, darkBackground);
+        formPanel.add(enchantmentCombo);
+
+        // Quantity
+        addLabelAndField(formPanel, "Quantity:", goldText);
+        quantitySpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
+        quantitySpinner.setBackground(new Color(50, 50, 50));
+        quantitySpinner.setForeground(goldText);
+        formPanel.add(quantitySpinner);
+
+        // Location Found
+        addLabelAndField(formPanel, "Location Found:", goldText);
+        locationField = new JTextField();
+        locationField.setBackground(new Color(50, 50, 50));
+        locationField.setForeground(goldText);
+        formPanel.add(locationField);
+
+        add(formPanel, BorderLayout.CENTER);
+
+        // Button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        buttonPanel.setBackground(darkBackground);
+
+        okButton = new JButton("OK");
+        styleButton(okButton, goldText, darkBackground, borderColor);
+        okButton.addActionListener(e -> {
+            confirmed = true;
+            createItemFromFields();
+            dispose();
+        });
+
+        cancelButton = new JButton("Cancel");
+        styleButton(cancelButton, goldText, darkBackground, borderColor);
+        cancelButton.addActionListener(e -> dispose());
+
+        buttonPanel.add(okButton);
+        buttonPanel.add(cancelButton);
+
+        add(buttonPanel, BorderLayout.SOUTH);
+
+        // Set default button
+        getRootPane().setDefaultButton(okButton);
+    }
+
+    private void addLabelAndField(JPanel panel, String labelText, Color textColor) {
+        JLabel label = new JLabel(labelText);
+        label.setForeground(textColor);
+        panel.add(label);
+    }
+
+    private void styleComboBox(JComboBox<String> combo, Color textColor, Color bgColor) {
+        combo.setBackground(new Color(50, 50, 50));
+        combo.setForeground(textColor);
+        combo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                setBackground(isSelected ? new Color(80, 60, 30) : bgColor);
+                setForeground(textColor);
+                return this;
+            }
+        });
+    }
+
+    private void styleButton(JButton button, Color textColor, Color bgColor, Color borderColor) {
+        button.setForeground(textColor);
+        button.setBackground(bgColor);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(borderColor, 1),
+                BorderFactory.createEmptyBorder(5, 10, 5, 10)));
+        button.setFocusPainted(false);
+    }
+
+    private void updateNameSuggestions() {
+        String category = (String) categoryCombo.getSelectedItem();
+        if (category != null) {
+            nameField.setText("");
+            List<String> items = itemDatabase.getItemsForCategory(category);
+            if (!items.isEmpty()) {
+                nameField.setText(items.get(0));
+                locationField.setText(itemDatabase.getRandomLocationFound(items.get(0)));
+            }
+        }
+    }
+
+    private void populateFields() {
+        if (item != null) {
+            nameField.setText(item.getName());
+            categoryCombo.setSelectedItem(item.getCategory());
+            enchantmentCombo.setSelectedItem(item.getEnchantment());
+            quantitySpinner.setValue(item.getQuantity());
+            locationField.setText(item.getLocationFound());
+        }
+    }
+
+    private void createItemFromFields() {
+        String name = nameField.getText();
+        String category = (String) categoryCombo.getSelectedItem();
+        String enchantment = (String) enchantmentCombo.getSelectedItem();
+        int quantity = (Integer) quantitySpinner.getValue();
+        String location = locationField.getText();
+
+        if (name.isEmpty() || category == null || enchantment == null || location.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please fill in all fields.", "Incomplete Data", JOptionPane.WARNING_MESSAGE);
+            confirmed = false;
+            return;
+        }
+
+        item = new Item(name, category, enchantment, quantity, location);
+    }
+
+    public boolean isConfirmed() {
+        return confirmed;
+    }
+
+    public Item getItem() {
+        return item;
+    }
+}
+
+class BuildCreatorDialog extends JDialog {
+    private boolean confirmed = false;
+    private Build build;
+    private Map<String, Item> availableItems;
+    private DefaultListModel<String> buildItemsModel;
+    private JList<String> buildItemsList;
+
+    public BuildCreatorDialog(JFrame parent, Map<String, Item> availableItems) {
+        super(parent, "Create New Build", true);
+        this.availableItems = availableItems;
+        this.build = new Build("");
+        initializeUI();
+    }
+
+    public BuildCreatorDialog(JFrame parent, Map<String, Item> availableItems, Build existingBuild) {
+        this(parent, availableItems);
+        this.build = existingBuild;
+        populateFields();
+    }
+
+    private void initializeUI() {
+        setSize(500, 400);
+        setLayout(new BorderLayout(10, 10));
+        Color darkBackground = new Color(30, 30, 30);
+        Color goldText = new Color(220, 180, 140);
+        Color borderColor = new Color(80, 60, 30);
+
+        getContentPane().setBackground(darkBackground);
+
+        // Main panel
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBackground(darkBackground);
+        mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        // Build name panel
+        JPanel namePanel = new JPanel(new BorderLayout(5, 5));
+        namePanel.setBackground(darkBackground);
+
+        JLabel nameLabel = new JLabel("Build Name:");
+        nameLabel.setForeground(goldText);
+        namePanel.add(nameLabel, BorderLayout.WEST);
+
+        JTextField nameField = new JTextField();
+        nameField.setBackground(new Color(50, 50, 50));
+        nameField.setForeground(goldText);
+        nameField.setText(build.getName());
+        nameField.getDocument().addDocumentListener(new DocumentListener() {
+            public void changedUpdate(DocumentEvent e) { updateName(); }
+            public void removeUpdate(DocumentEvent e) { updateName(); }
+            public void insertUpdate(DocumentEvent e) { updateName(); }
+            private void updateName() {
+                build.setName(nameField.getText());
+            }
+        });
+        namePanel.add(nameField, BorderLayout.CENTER);
+
+        mainPanel.add(namePanel, BorderLayout.NORTH);
+
+        // Build items panel
+        JPanel itemsPanel = new JPanel(new BorderLayout(5, 5));
+        itemsPanel.setBackground(darkBackground);
+
+        buildItemsModel = new DefaultListModel<>();
+        updateBuildItemsList();
+
+        buildItemsList = new JList<>(buildItemsModel);
+        buildItemsList.setBackground(new Color(50, 50, 50));
+        buildItemsList.setForeground(goldText);
+        buildItemsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+
+        JScrollPane scrollPane = new JScrollPane(buildItemsList);
+        scrollPane.setBorder(BorderFactory.createLineBorder(borderColor, 1));
+        itemsPanel.add(scrollPane, BorderLayout.CENTER);
+
+        // Items buttons panel
+        JPanel itemsButtonsPanel = new JPanel(new GridLayout(1, 2, 5, 5));
+        itemsButtonsPanel.setBackground(darkBackground);
+
+        JButton addItemBtn = new JButton("Add Item");
+        styleButton(addItemBtn, goldText, darkBackground, borderColor);
+        addItemBtn.addActionListener(e -> addItemToBuild());
+
+        JButton removeItemBtn = new JButton("Remove Item");
+        styleButton(removeItemBtn, goldText, darkBackground, borderColor);
+        removeItemBtn.addActionListener(e -> removeItemFromBuild());
+
+        itemsButtonsPanel.add(addItemBtn);
+        itemsButtonsPanel.add(removeItemBtn);
+
+        itemsPanel.add(itemsButtonsPanel, BorderLayout.SOUTH);
+
+        mainPanel.add(itemsPanel, BorderLayout.CENTER);
+
+        // Description panel
+        JPanel descPanel = new JPanel(new BorderLayout(5, 5));
+        descPanel.setBackground(darkBackground);
+
+        JLabel descLabel = new JLabel("Description:");
+        descLabel.setForeground(goldText);
+        descPanel.add(descLabel, BorderLayout.NORTH);
+
+        JTextArea descArea = new JTextArea();
+        descArea.setBackground(new Color(50, 50, 50));
+        descArea.setForeground(goldText);
+        descArea.setLineWrap(true);
+        descArea.setWrapStyleWord(true);
+        descArea.setText(build.getDescription());
+        descArea.getDocument().addDocumentListener(new DocumentListener() {
+            public void changedUpdate(DocumentEvent e) { updateDesc(); }
+            public void removeUpdate(DocumentEvent e) { updateDesc(); }
+            public void insertUpdate(DocumentEvent e) { updateDesc(); }
+            private void updateDesc() {
+                build.setDescription(descArea.getText());
+            }
+        });
+
+        JScrollPane descScroll = new JScrollPane(descArea);
+        descScroll.setBorder(BorderFactory.createLineBorder(borderColor, 1));
+        descPanel.add(descScroll, BorderLayout.CENTER);
+
+        mainPanel.add(descPanel, BorderLayout.SOUTH);
+
+        add(mainPanel, BorderLayout.CENTER);
+
+        // Button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        buttonPanel.setBackground(darkBackground);
+
+        JButton okButton = new JButton("OK");
+        styleButton(okButton, goldText, darkBackground, borderColor);
+        okButton.addActionListener(e -> {
+            if (validateBuild()) {
+                confirmed = true;
+                dispose();
+            }
+        });
+
+        JButton cancelButton = new JButton("Cancel");
+        styleButton(cancelButton, goldText, darkBackground, borderColor);
+        cancelButton.addActionListener(e -> dispose());
+
+        buttonPanel.add(okButton);
+        buttonPanel.add(cancelButton);
+
+        add(buttonPanel, BorderLayout.SOUTH);
+
+        // Set default button
+        getRootPane().setDefaultButton(okButton);
+    }
+
+    private void styleButton(JButton button, Color textColor, Color bgColor, Color borderColor) {
+        button.setForeground(textColor);
+        button.setBackground(bgColor);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(borderColor, 1),
+                BorderFactory.createEmptyBorder(5, 10, 5, 10)));
+        button.setFocusPainted(false);
+    }
+
+    private void populateFields() {
+        updateBuildItemsList();
+    }
+
+    private void updateBuildItemsList() {
+        buildItemsModel.clear();
+        for (Item item : build.getItems().values()) {
+            buildItemsModel.addElement(item.toString());
+        }
+    }
+
+    private void addItemToBuild() {
+        AddItemToBuildDialog dialog = new AddItemToBuildDialog(this, availableItems);
+        dialog.setVisible(true);
+        if (dialog.isConfirmed()) {
+            Item selectedItem = dialog.getSelectedItem();
+            build.addItem(selectedItem);
+            updateBuildItemsList();
+        }
+    }
+
+    private void removeItemFromBuild() {
+        String selected = buildItemsList.getSelectedValue();
+        if (selected == null) {
+            JOptionPane.showMessageDialog(this, "Please select an item to remove.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        String itemName = selected.split(" \\(")[0];
+        build.removeItem(itemName);
+        updateBuildItemsList();
+    }
+
+    private boolean validateBuild() {
+        if (build.getName().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please enter a build name.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+
+        if (build.getItems().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please add at least one item to the build.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+
+        if (!build.hasAllCategories()) {
+            JOptionPane.showMessageDialog(this, "Build must contain at least one item from each category (Weapon, Armor, Jewelry, Charm, Rune, Gem).", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+
+        return true;
+    }
+
+    public boolean isConfirmed() {
+        return confirmed;
+    }
+
+    public Build getBuild() {
+        return build;
+    }
+}
+
+class AddItemToBuildDialog extends JDialog {
+    private boolean confirmed = false;
+    private Item selectedItem;
+    private Map<String, Item> availableItems;
+
+    private JList<String> itemsList;
+    private JButton okButton;
+    private JButton cancelButton;
+
+    public AddItemToBuildDialog(JDialog parent, Map<String, Item> availableItems) {
+        super(parent, "Add Item to Build", true);
+        this.availableItems = availableItems;
+        initializeUI();
+    }
+
+    private void initializeUI() {
+        setSize(400, 300);
+        setLayout(new BorderLayout(10, 10));
+        Color darkBackground = new Color(30, 30, 30);
+        Color goldText = new Color(220, 180, 140);
+        Color borderColor = new Color(80, 60, 30);
+
+        getContentPane().setBackground(darkBackground);
+
+        // Items list
+        DefaultListModel<String> listModel = new DefaultListModel<>();
+        for (Item item : availableItems.values()) {
+            listModel.addElement(item.toString());
+        }
+
+        itemsList = new JList<>(listModel);
+        itemsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        itemsList.setBackground(new Color(50, 50, 50));
+        itemsList.setForeground(goldText);
+
+        JScrollPane scrollPane = new JScrollPane(itemsList);
+        scrollPane.setBorder(BorderFactory.createLineBorder(borderColor, 1));
+        add(scrollPane, BorderLayout.CENTER);
+
+        // Button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        buttonPanel.setBackground(darkBackground);
+
+        okButton = new JButton("OK");
+        styleButton(okButton, goldText, darkBackground, borderColor);
+        okButton.addActionListener(e -> {
+            String selected = itemsList.getSelectedValue();
+            if (selected != null) {
+                String itemName = selected.split(" \\(")[0];
+                selectedItem = availableItems.get(itemName);
+                confirmed = true;
+                dispose();
+            } else {
+                JOptionPane.showMessageDialog(this, "Please select an item.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            }
+        });
+
+        cancelButton = new JButton("Cancel");
+        styleButton(cancelButton, goldText, darkBackground, borderColor);
+        cancelButton.addActionListener(e -> dispose());
+
+        buttonPanel.add(okButton);
+        buttonPanel.add(cancelButton);
+
+        add(buttonPanel, BorderLayout.SOUTH);
+
+        // Set default button
+        getRootPane().setDefaultButton(okButton);
+    }
+
+    private void styleButton(JButton button, Color textColor, Color bgColor, Color borderColor) {
+        button.setForeground(textColor);
+        button.setBackground(bgColor);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(borderColor, 1),
+                BorderFactory.createEmptyBorder(5, 10, 5, 10)));
+        button.setFocusPainted(false);
+    }
+
+    public boolean isConfirmed() {
+        return confirmed;
+    }
+
+    public Item getSelectedItem() {
+        return selectedItem;
+    }
+}
+
+class ViewBuildDialog extends JDialog {
+    public ViewBuildDialog(JFrame parent, Build build) {
+        super(parent, "View Build: " + build.getName(), true);
+        initializeUI(build);
+    }
+
+    private void initializeUI(Build build) {
+        setSize(500, 400);
+        setLayout(new BorderLayout(10, 10));
+        Color darkBackground = new Color(30, 30, 30);
+        Color goldText = new Color(220, 180, 140);
+        Color borderColor = new Color(80, 60, 30);
+
+        getContentPane().setBackground(darkBackground);
+
+        // Main panel
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBackground(darkBackground);
+        mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        // Build name label
+        JLabel nameLabel = new JLabel("Build: " + build.getName());
+        nameLabel.setForeground(goldText);
+        nameLabel.setFont(new Font("Arial", Font.BOLD, 16));
+        nameLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        mainPanel.add(nameLabel, BorderLayout.NORTH);
+
+        // Build items panel
+        JPanel itemsPanel = new JPanel(new BorderLayout(5, 5));
+        itemsPanel.setBackground(darkBackground);
+
+        DefaultListModel<String> listModel = new DefaultListModel<>();
+        for (Item item : build.getItems().values()) {
+            listModel.addElement(item.toString() + " - " + item.getLocationFound());
+        }
+
+        JList<String> itemsList = new JList<>(listModel);
+        itemsList.setBackground(new Color(50, 50, 50));
+        itemsList.setForeground(goldText);
+        itemsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+
+        JScrollPane scrollPane = new JScrollPane(itemsList);
+        scrollPane.setBorder(BorderFactory.createLineBorder(borderColor, 1));
+        itemsPanel.add(scrollPane, BorderLayout.CENTER);
+
+        mainPanel.add(itemsPanel, BorderLayout.CENTER);
+
+        // Description panel
+        if (!build.getDescription().isEmpty()) {
+            JPanel descPanel = new JPanel(new BorderLayout(5, 5));
+            descPanel.setBackground(darkBackground);
+
+            JLabel descLabel = new JLabel("Description:");
+            descLabel.setForeground(goldText);
+            descPanel.add(descLabel, BorderLayout.NORTH);
+
+            JTextArea descArea = new JTextArea(build.getDescription());
+            descArea.setBackground(new Color(50, 50, 50));
+            descArea.setForeground(goldText);
+            descArea.setEditable(false);
+            descArea.setLineWrap(true);
+            descArea.setWrapStyleWord(true);
+
+            JScrollPane descScroll = new JScrollPane(descArea);
+            descScroll.setBorder(BorderFactory.createLineBorder(borderColor, 1));
+            descPanel.add(descScroll, BorderLayout.CENTER);
+
+            mainPanel.add(descPanel, BorderLayout.SOUTH);
+        }
+
+        add(mainPanel, BorderLayout.CENTER);
+
+        // Close button
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        buttonPanel.setBackground(darkBackground);
+
+        JButton closeButton = new JButton("Close");
+        styleButton(closeButton, goldText, darkBackground, borderColor);
+        closeButton.addActionListener(e -> dispose());
+
+        buttonPanel.add(closeButton);
+        add(buttonPanel, BorderLayout.SOUTH);
+
+        // Set default button
+        getRootPane().setDefaultButton(closeButton);
+    }
+
+    private void styleButton(JButton button, Color textColor, Color bgColor, Color borderColor) {
+        button.setForeground(textColor);
+        button.setBackground(bgColor);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(borderColor, 1),
+                BorderFactory.createEmptyBorder(5, 10, 5, 10)));
+        button.setFocusPainted(false);
+    }
+}
+
+class ItemDatabaseWindow extends JDialog {
+    public ItemDatabaseWindow(JFrame parent, ItemDatabase itemDatabase) {
+        super(parent, "Diablo 2 Item Database", false);
+        initializeUI(itemDatabase);
+    }
+
+    private void initializeUI(ItemDatabase itemDatabase) {
+        setSize(700, 500);
+        setLayout(new BorderLayout(10, 10));
+        Color darkBackground = new Color(30, 30, 30);
+        Color goldText = new Color(220, 180, 140);
+        Color borderColor = new Color(80, 60, 30);
+
+        getContentPane().setBackground(darkBackground);
+
+        // Main panel
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBackground(darkBackground);
+        mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        // Tabbed pane for categories
+        JTabbedPane tabbedPane = new JTabbedPane();
+        tabbedPane.setBackground(darkBackground);
+        tabbedPane.setForeground(goldText);
+        tabbedPane.setBorder(BorderFactory.createLineBorder(borderColor, 1));
+
+        // Create a tab for each category
+        for (String category : itemDatabase.getCategories()) {
+            JPanel categoryPanel = new JPanel(new BorderLayout());
+            categoryPanel.setBackground(darkBackground);
+
+            DefaultListModel<String> listModel = new DefaultListModel<>();
+            for (String item : itemDatabase.getItemsForCategory(category)) {
+                listModel.addElement(item);
+            }
+
+            JList<String> itemsList = new JList<>(listModel);
+            itemsList.setBackground(new Color(50, 50, 50));
+            itemsList.setForeground(goldText);
+            itemsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+
+            JScrollPane scrollPane = new JScrollPane(itemsList);
+            scrollPane.setBorder(BorderFactory.createLineBorder(borderColor, 1));
+            categoryPanel.add(scrollPane, BorderLayout.CENTER);
+
+            // Add info panel at bottom
+            JPanel infoPanel = new JPanel(new BorderLayout());
+            infoPanel.setBackground(darkBackground);
+            infoPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
+
+            JLabel infoLabel = new JLabel("Select an item to view details");
+            infoLabel.setForeground(goldText);
+            infoPanel.add(infoLabel, BorderLayout.CENTER);
+
+            itemsList.addListSelectionListener(e -> {
+                if (!e.getValueIsAdjusting()) {
+                    String selected = itemsList.getSelectedValue();
+                    if (selected != null) {
+                        String location = itemDatabase.getRandomLocationFound(selected);
+                        infoLabel.setText(selected + " - Typically found in: " + location);
+                    }
+                }
+            });
+
+            categoryPanel.add(infoPanel, BorderLayout.SOUTH);
+
+            tabbedPane.addTab(category, categoryPanel);
+        }
+
+        mainPanel.add(tabbedPane, BorderLayout.CENTER);
+        add(mainPanel, BorderLayout.CENTER);
+
+        // Close button
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        buttonPanel.setBackground(darkBackground);
+
+        JButton closeButton = new JButton("Close");
+        styleButton(closeButton, goldText, darkBackground, borderColor);
+        closeButton.addActionListener(e -> dispose());
+
+        buttonPanel.add(closeButton);
+        add(buttonPanel, BorderLayout.SOUTH);
+
+        // Set default button
+        getRootPane().setDefaultButton(closeButton);
+    }
+
+    private void styleButton(JButton button, Color textColor, Color bgColor, Color borderColor) {
+        button.setForeground(textColor);
+        button.setBackground(bgColor);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(borderColor, 1),
+                BorderFactory.createEmptyBorder(5, 10, 5, 10)));
+        button.setFocusPainted(false);
+    }
+}
