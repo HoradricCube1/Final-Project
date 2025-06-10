@@ -1,5 +1,5 @@
 # Final-Project
-This may final project which is based on my favourite game - Diablo 2 - HoradricCube1 out for this semester&lt;3
+This is my final project which is based on my favourite game - Diablo 2 - HoradricCube1 out for this semester&lt;3
 
 # Diablo 2 Inventory and Build Manager
 
@@ -33,4 +33,4 @@ All data is saved in:
 
 ## License
 
-no license I am in Nulgaria after all no FBI to come after me hehe
+no license I am in Bulgaria after all no FBI to come after me hehe
